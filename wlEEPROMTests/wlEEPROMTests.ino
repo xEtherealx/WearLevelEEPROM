@@ -1,5 +1,5 @@
 /*
- * EEPROM_
+ * EEPROMwl
  *
  * Tests reading, writing and updating data in the EEPROM
  * to the computer.
@@ -9,7 +9,7 @@
 
 #include "Arduino.h"
 
-wlEEPROM* EEPROM_;
+wlEEPROM* EEPROMwl;
 
 int getRandomAddress(int size_uint8_ts) {
   return random(0, E2END - size_uint8_ts);
@@ -18,9 +18,9 @@ int getRandomAddress(int size_uint8_ts) {
 
 template <typename T> bool verifyWriteAndRead(const T input) {
   int address = getRandomAddress(sizeof(T));
-  EEPROM_->write(address, input);
+  EEPROMwl->write(address, input);
   T output;
-  EEPROM_->get(address, output);
+  EEPROMwl->get(address, output);
 
   if (input != output) {
     Serial.print("address: ");
@@ -38,9 +38,9 @@ return false;
 
 template <typename T> int verifyWriteAndReadBlock(const T input[], const int input_length) {
   int address = getRandomAddress(sizeof(T) * input_length);
-  EEPROM_->put(address, input, input_length);
+  EEPROMwl->put(address, input, input_length);
   T output[input_length];
-  EEPROM_->get(address, output, input_length);
+  EEPROMwl->get(address, output, input_length);
   
   for (int element = 0; element < input_length; element++) {
     if (input[element] != output[element]) {
@@ -113,8 +113,8 @@ bool writeAndReadByteArray() {
     uint8_t input[]   = {1, 2, 4, 8, 16, 32, 64 };
     uint8_t output[sizeof(input)];
     int expectedWrittenuint8_ts = 3;
-    EEPROM_->put<uint8_t>(blockAddress, input, itemsInArray);
-    EEPROM_->get<uint8_t>(blockAddress, output, itemsInArray);
+    EEPROMwl->put<uint8_t>(blockAddress, input, itemsInArray);
+    EEPROMwl->get<uint8_t>(blockAddress, output, itemsInArray);
 
     for(int element = 0; element < itemsInArray; element++) {
       if (input[element] != output[element]) {
@@ -140,9 +140,9 @@ bool writeAndReadStruct() {
   strcpy(family_member.name, "Skippy Johnson");
 
   int address = getRandomAddress(sizeof(family_member));
-  EEPROM_->put(address, family_member);
+  EEPROMwl->put(address, family_member);
   PERSON output;
-  EEPROM_->get(address, output);
+  EEPROMwl->get(address, output);
   if (output.age != family_member.age || strcmp(output.name, family_member.name) != 0) {
     Serial.print("output: ");
     Serial.print(output.age);
@@ -156,7 +156,7 @@ bool writeAndReadStruct() {
 // Check if we get errors when writing too much or out of bounds
 void errorChecking() {
     Serial.println("Expecting Attempt to write outside of EEPROM memory...");
-    if (EEPROM_->put(E2END + 1, long(1)))
+    if (EEPROMwl->put(E2END + 1, long(1)))
       Serial.println("ERROR: Write outside E2END should have failed!");    
 }
 
@@ -164,8 +164,8 @@ void errorChecking() {
 
 bool testFindWearKey() {
   // Set up a deterministic memory pool
-  delete[] EEPROM_;
-  EEPROM_ = new wlEEPROM();
+  delete[] EEPROMwl;
+  EEPROMwl = new wlEEPROM();
   wear_profile profile = {
     {'A','B','C','1','2','3','0','0'}
   };
@@ -174,10 +174,10 @@ bool testFindWearKey() {
   const char test_key[] = "ABC12300";
   // Write the key to a memory address
   int address = 255;
-  EEPROM_->put(address, test_key, 8);
+  EEPROMwl->put(address, test_key, 8);
 
   // Attempt to find the key within the memory block
-  int key_location = EEPROM_->findWearLevelledData_(profile);
+  int key_location = EEPROMwl->findWearLevelledData_(profile);
   if (key_location != address)
     return false;
   Serial.print("OK");
@@ -200,22 +200,22 @@ bool testwriteWearLevelling() {
   };
   
   // Set up a deterministic memory pool
-  delete[] EEPROM_;
-  EEPROM_ = new wlEEPROM();
+  delete[] EEPROMwl;
+  EEPROMwl = new wlEEPROM();
 
   const char test_key[] = "wearlevl";
   // Write the key, checksum, and data to a memory address
   int address = 255;
-  EEPROM_->writeWearLevelledData(profile, test_struct);
+  EEPROMwl->writeWearLevelledData(profile, test_struct);
   // Verify checksum
-  if (int(EEPROM_->checkSum_(test_struct)) != 6) {
+  if (int(EEPROMwl->checkSum_(test_struct)) != 6) {
     Serial.print("Error: expected checksum == 6, got ");
-    Serial.println(int(EEPROM_->checkSum_(test_struct)));
+    Serial.println(int(EEPROMwl->checkSum_(test_struct)));
   }
 
   // Attempt to find the key within the memory block
   WEARTEST read_data;
-  int data_size = EEPROM_->readWearLevelledData(profile, read_data);
+  int data_size = EEPROMwl->readWearLevelledData(profile, read_data);
   if (data_size != sizeof(read_data))
     return false;
   Serial.print("OK");
@@ -226,19 +226,19 @@ bool testwriteWearLevelling() {
 void setup()
 {  
   randomSeed(analogRead(0));
-  EEPROM_ = new wlEEPROM();
+  EEPROMwl = new wlEEPROM();
   Serial.begin(9600);
   while (!Serial) {
     ; // wait for serial port to connect. Needed for Leonardo only
   }
   
-  // Writes before membase or beyond memBase + memSizeuint8_ts will only give errors when _EEPROM__DEBUG is set
+  // Writes before membase or beyond memBase + memSizeuint8_ts will only give errors when _EEPROMwl_DEBUG is set
   // Create randomized memory pool to avoid excessive writes during testing
   int memSizeuint8_ts = 80;
   const int memBase = random(0, E2END - memSizeuint8_ts);
   Serial.print("Memory pool set to "); Serial.print(memBase); Serial.print(" - ");
   Serial.println(memBase + memSizeuint8_ts);
-  EEPROM_->setMemoryPool(memBase, memBase + memSizeuint8_ts);
+  EEPROMwl->setMemoryPool(memBase, memBase + memSizeuint8_ts);
 
   testwriteWearLevelling();
   return;
