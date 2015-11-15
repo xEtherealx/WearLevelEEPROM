@@ -75,7 +75,7 @@ public:
   }
 
   // Writes data and a wear profile header to memory space preceding the current
-  //    data block with matching wear key.  The current block's key will be 
+  //    data block with matching wear key.  The current block's key will be
   //    invalidated.
   //
   // TODO: avoid writing over 'active' wear blocks via multiple keys
@@ -124,7 +124,7 @@ public:
 
     // Find a wear key and validate the data
     while(key_address < memory_space_last_byte_) {
-      key_address = findWearKey(key_address, profile.key);
+      key_address = findWearKey_(key_address, profile.key);
 
       // Read the entire wear profile
       get(key_address, profile);
@@ -144,13 +144,6 @@ public:
     return -1;
   }
 
-  // Locates the first instance of the wear key in memory.
-  // Args:
-  //   mem_start: starting memory location for search
-  // Returns:
-  //  int memory address of start of key, or -1 if not found
-  int findWearKey(int mem_start, const char key[WEAR_KEY_LENGTH]);
-
 
   // Calculates a checksum of a block of data
   template <class T> uint8_t checkSum(const T& data) {
@@ -167,6 +160,10 @@ public:
   }
 
 
+  // Reads a single bit.
+  bool getBit(const int address, const int bit_number);
+
+  // Extensions of EEPROM to handle arrays of data
   // 'get' and 'put' arrays of objects to and from EEPROM.
   template <class T> T& get(int idx, T& t, const size_t data_len){
     for (int element=0; element < data_len; ++element) {
@@ -174,6 +171,10 @@ public:
     }
     return t;
   }
+
+  // Writes a single bit, returns false only if bit_number is out of range
+  bool putBit(const int address, const int bit_number, const bool  value);
+  bool updateBit(const int address, const int bit_number, const bool  value);
 
   template <class T> const T& put(int idx, const T& t, const size_t data_len) {
     for (int element=0; element < data_len; ++element) {
@@ -192,52 +193,13 @@ private:
   int memory_space_last_byte_;          // Last byte of memory space
   char* substring(char *haystack, char *needle, size_t length);
 
-}
-
-
-
-
-
-class EEPROMex2 {
-
-
-  // Reads a single bit.
-  bool readBit(const int address, int bit);
-
-  // Reads any type of variable, such as structs.
-  // Returns:
-  //   number of bytes read.
-  template <class T> int readBlock(const int address, const T& value) {
-    eeprom_read_block((void*)&value, (const void*)address, sizeof(value));
-    return sizeof(value);
-  }
-
-  // Writes a single bit.
-  bool writeBit(int , uint8_t, bool);
-
-  // Writes any type of variable, such as structs.
+  // Locates the first instance of the wear key in memory.
   // Args:
-  //   address: int beginning address of data.
-  //   value: variable to be written into.
-  template <class T> int writeBlock(int address, const T& value) {
-    if (!isWriteOk(address + sizeof(value))) return 0;
-    eeprom_write_block((void*)&value, (void*)address, sizeof(value));
-    return sizeof(value);
-  }
-
-
-private:
-  //Private variables
-  int memory_space_first_byte_;         // First byte of memory space
-  int memory_space_last_byte_;          // Last byte of memory space
-  int next_available_address_;
-  int wear_block_first_byte_;
-  int wear_block_last_byte_;
-  wear_profile profile;
-  int num_writes_allowed_;
-  char* substring(char *haystack, char *needle, size_t length);
-
-};
+  //   mem_start: starting memory location for search
+  // Returns:
+  //  int memory address of start of key, or -1 if not found
+  int findWearKey_(int mem_start, const char key[WEAR_KEY_LENGTH]);
+}
 
 #endif // WLEEPROM_h
 
