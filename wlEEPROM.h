@@ -18,9 +18,7 @@
 
 #include <Arduino.h>
 #include <EEPROM.h>
-#include <cstdint>
-
-#define DEBUG_EEPROM // Enables logging of maximum of writes and out-of-memory
+#include <stdint.h>
 
 // Size of buffer to use when finding current buffer, in bytes
 #define WEAR_KEY_SEARCH_SIZE 128
@@ -34,10 +32,12 @@ struct wear_profile {
 };
 
 
-class WLEEPROM: Public EEPROMClass {
+class wlEEPROM: public EEPROMClass {
 public:
+  using EEPROMClass::get;
+  using EEPROMClass::put;
   // By default we use the entire memory range.
-  EEPROMex2() :
+  wlEEPROM() :
     memory_space_first_byte_(0),
     memory_space_last_byte_(E2END) {
       setMemoryPool(memory_space_first_byte_, E2END);
@@ -63,10 +63,9 @@ public:
   // Returns:
   //   int size of *valid* profile data read, -1 if no matching profile was
   //       found.
-  template <class T> int readWearLevelledData(
-    const wear_profile& profile, T& data) {
+  template <class T> int readWearLevelledData(wear_profile& profile, T& data) {
       // Find the current wear level location, if any
-      int key_address = findWearLevelledData(profile);
+      int key_address = findWearLevelledData_(profile);
       if (key_address < 0)
         return -1;
 
@@ -88,20 +87,20 @@ public:
   template <class T> int writeWearLevelledData(
     wear_profile& profile, const T& data) {
       // Find the current wear level location, create one later if not found
-      int key_address = findWearLevelledData(profile);
+      int key_address = findWearLevelledData_(profile);
 
       // Determin new key address, overwriting the current if it exists
       if (key_address >= 0) {
         key_address -= sizeof(wear_profile) + sizeof(data) - WEAR_KEY_LENGTH;
       } else {
         // Randomize this new location within the memory space
-        srand(time(NULL)); // Good enough
+        srand(millis()); // Good enough
         int range =
             memory_space_last_byte_ - memory_space_first_byte_ - sizeof(data);
         key_address = rand() % range + memory_space_first_byte_;
       }
       profile.data_size_bytes = sizeof(data);
-      profile.checksum = checkSum(data);
+      profile.checksum = checkSum_(data);
 
       // Write the new wear profile, and then the data. Old wear key is
       // overwritten with last bytes of data.
@@ -111,6 +110,40 @@ public:
   }
 
 
+  // Reads a single bit.
+  bool getBit(const int address, const int bit_number);
+
+  // Extensions of EEPROM to handle arrays of data
+  // 'get' and 'put' arrays of objects to and from EEPROM.
+  template <class T> T* get(int idx, T* t, const size_t data_len){
+    for (int element=0; element < data_len; ++element) {
+      get(idx + element, *(t + sizeof(T)*element));
+    }
+    return t;
+  }
+
+  // Writes a single bit, returns false only if bit_number is out of range
+  bool putBit(const int address, const int bit_number, const bool  value);
+  bool updateBit(const int address, const int bit_number, const bool  value);
+
+  template <class T> const T* put(int idx, const T* t, const size_t data_len) {
+    for (int element=0; element < data_len; ++element) {
+      put(idx + element, *(t + sizeof(T)*element));
+    }
+    return t;
+  }
+
+
+  // Checks whether EEPROM is ready to be accessed.
+  bool isReady();
+
+
+  //Private variables
+  int memory_space_first_byte_;         // First byte of memory space
+  int memory_space_last_byte_;          // Last byte of memory space
+  char* substring(char *haystack, char *needle, size_t length);
+  
+
   // Locates the first valid wear level profile and data block matching the
   // provided profile key, and with valid data.
   //
@@ -119,7 +152,7 @@ public:
   // Returns:
   //   Integer address of the found key, or -1 on failure. The provided
   //   wear_profile will be filled out.
-  int findWearLevelledData(wear_profile& profile) {
+  int findWearLevelledData_(wear_profile& profile) {
     int key_address = memory_space_first_byte_;
 
     // Find a wear key and validate the data
@@ -134,7 +167,7 @@ public:
       get(key_address + sizeof(profile), data, profile.data_size_bytes);
 
       // If the checksum matches, we've found our data
-      if (profile.checksum == checkSum(data, profile.data_size_bytes)) {
+      if (profile.checksum == checkSum_(data, profile.data_size_bytes)) {
         return key_address;
       }
 
@@ -145,11 +178,20 @@ public:
   }
 
 
+  // Locates the first instance of the wear key in memory.
+  // Args:
+  //   mem_start: starting memory location for search
+  //   key: char[] pointer to array containing target key
+  // Returns:
+  //  int memory address of start of key, or -1 if not found
+  int findWearKey_(int mem_start, char key[WEAR_KEY_LENGTH]);
+
+
   // Calculates a checksum of a block of data
-  template <class T> uint8_t checkSum(const T& data) {
-    return checkSum((const uint8_t*)&data, sizeof(data));
+  template <class T> uint8_t checkSum_(const T& data) {
+    return checkSum_((const uint8_t*)&data, sizeof(data));
   }
-  template <class T> uint8_t checkSum(
+  template <class T> uint8_t checkSum_(
       const T* data, const size_t data_length_bytes) {
     const uint8_t* block;
     uint8_t checksum = 0;
@@ -158,48 +200,7 @@ public:
       checksum += *block++;
     return checksum;
   }
-
-
-  // Reads a single bit.
-  bool getBit(const int address, const int bit_number);
-
-  // Extensions of EEPROM to handle arrays of data
-  // 'get' and 'put' arrays of objects to and from EEPROM.
-  template <class T> T& get(int idx, T& t, const size_t data_len){
-    for (int element=0; element < data_len; ++element) {
-      get(idx + element, (uint8_t*)&t + element)
-    }
-    return t;
-  }
-
-  // Writes a single bit, returns false only if bit_number is out of range
-  bool putBit(const int address, const int bit_number, const bool  value);
-  bool updateBit(const int address, const int bit_number, const bool  value);
-
-  template <class T> const T& put(int idx, const T& t, const size_t data_len) {
-    for (int element=0; element < data_len; ++element) {
-      put(idx + element, (const uint8_t*)&t + element)
-    }
-    return t;
-  }
-
-
-  // Checks whether EEPROM is ready to be accessed.
-  bool isReady();
-
-private:
-  //Private variables
-  int memory_space_first_byte_;         // First byte of memory space
-  int memory_space_last_byte_;          // Last byte of memory space
-  char* substring(char *haystack, char *needle, size_t length);
-
-  // Locates the first instance of the wear key in memory.
-  // Args:
-  //   mem_start: starting memory location for search
-  // Returns:
-  //  int memory address of start of key, or -1 if not found
-  int findWearKey_(int mem_start, const char key[WEAR_KEY_LENGTH]);
-}
+};
 
 #endif // WLEEPROM_h
 

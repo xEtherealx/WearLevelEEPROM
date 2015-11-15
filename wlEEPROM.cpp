@@ -4,12 +4,12 @@
 #include "wlEEPROM.h"
 
 
-bool EEPROMex2::isReady() {
+bool wlEEPROM::isReady() {
   return eeprom_is_ready();
 }
 
 
-bool EEPROMex2::setMemoryPool(int memory_first_byte, int memory_size=0) {
+bool wlEEPROM::setMemoryPool(int memory_first_byte, int memory_size=0) {
   // If no memory_size was provided, use max memory
   if (memory_size <= 0)
     memory_size = E2END - memory_first_byte;
@@ -20,19 +20,19 @@ bool EEPROMex2::setMemoryPool(int memory_first_byte, int memory_size=0) {
 }
 
 
-bool EEPROMex2::getBit(const int address, const int bit_number) {
+bool wlEEPROM::getBit(const int address, const int bit_number) {
   if (bit_number > 7) return false;
   uint8_t byteVal =  eeprom_read_byte((unsigned char *) address);
   return (byteVal & (1 << bit_number));
 }
 
 
-bool EEPROMex2::putBit(const int address, const int bit_number, const bool value) {
+bool wlEEPROM::putBit(const int address, const int bit_number, const bool value) {
   return updateBit(address, bit_number, value);
 }
 
 
-bool EEPROMex2::updateBit(const int address, const int bit_number, const bool value) {
+bool wlEEPROM::updateBit(const int address, const int bit_number, const bool value) {
   if (bit_number> 7) return false;
 
   byte byteValInput  = read(address);
@@ -51,7 +51,7 @@ bool EEPROMex2::updateBit(const int address, const int bit_number, const bool va
 }
 
 
-int EEPROMex2::findWearKey_(int mem_start) {
+int wlEEPROM::findWearKey_(int mem_start, char key[WEAR_KEY_LENGTH]) {
   char search_buffer[WEAR_KEY_SEARCH_SIZE];
 
   // Search over memory space, reading in chunks
@@ -62,7 +62,7 @@ int EEPROMex2::findWearKey_(int mem_start) {
     get(address, search_buffer, read_bytes);
 
     // Find location of wear key within buffer, or not
-    char *key_location = substring(search_buffer, wear_profile_.wear_level_key, read_bytes);
+    char *key_location = substring(search_buffer, key, read_bytes);
     if (key_location != NULL) {
       // Determine location wrt address and return it
       return address + (key_location - search_buffer);
@@ -73,7 +73,7 @@ int EEPROMex2::findWearKey_(int mem_start) {
 
 
 // Finds a substring, ignoring null characters.
-char* EEPROMex2::substring(char *haystack, char *needle, size_t length) {
+char* wlEEPROM::substring(char *haystack, char *needle, size_t length) {
   size_t needle_length = strlen(needle);
 
   for (size_t i = 0; i < length; i++) {
