@@ -1,7 +1,7 @@
 // WearLevelEEPROM - EEPROM library enhanced with wear leveling
 // Author: Russell Brennan
 //
-#include "EEPROMex2.h"
+#include "wlEEPROM.h"
 
 
 bool EEPROMex2::isReady() {
