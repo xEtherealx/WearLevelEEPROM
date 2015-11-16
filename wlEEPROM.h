@@ -38,10 +38,17 @@ public:
   using EEPROMClass::put;
   // By default we use the entire memory range.
   wlEEPROM() :
-    memory_space_first_byte_(0),
-    memory_space_last_byte_(E2END) {
-      setMemoryPool(memory_space_first_byte_, E2END);
+    memory_space_start_(0),
+    memory_space_end_(E2END),
+    prior_key_location_(0) {
+      setMemoryPool(memory_space_start_, E2END);
   }
+
+  //STL and C++11 iteration capability.                                        
+  EEPtr begin() { return memory_space_start_; }                        
+  //Standard requires this to be the item after the last valid entry.
+  EEPtr end() { return memory_space_end_; }
+  uint16_t length() { return end() - begin(); } 
 
 
   // Sets the starting position and memory size that we manage.
@@ -55,7 +62,7 @@ public:
 
 
   // Reads the first valid data block matching the provided profile key,
-  // with valid data.
+  // with data having a valid checksum.
   //
   // Args:
   //   profile: a wear_profile for data to be read, containing the target key.
@@ -63,7 +70,7 @@ public:
   // Returns:
   //   int size of *valid* profile data read, -1 if no matching profile was
   //       found.
-  template <class T> int readWearLevelledData(wear_profile& profile, T& data) {
+  template <class T> int wlRead(wear_profile& profile, T& data) {
       // Find the current wear level location, if any
       int key_address = findWearLevelledData_(profile);
       if (key_address < 0)
@@ -83,65 +90,95 @@ public:
   //   profile: a wear_profile for data to be read, containing the target key.
   //   data: reference to data that is to be written.
   // Returns:
-  //   -1 on failure, 1 on success
-  template <class T> int writeWearLevelledData(
+  //   -1 on failure, address of key on success
+  template <class T> int wlWrite(
     wear_profile& profile, const T& data) {
+      int required_space = sizeof(profile) + sizeof(data);
+      if (this->length() < required_space)
+        return -1;
+
       // Find the current wear level location, create one later if not found
       int key_address = findWearLevelledData_(profile);
 
-      // Determin new key address, overwriting the current if it exists
+      // Determine new key address, overwriting the current if it exists
       if (key_address >= 0) {
-        key_address -= sizeof(wear_profile) + sizeof(data) - WEAR_KEY_LENGTH;
+        key_address -= (required_space - WEAR_KEY_LENGTH);
       } else {
-        // Randomize this new location within the memory space
+        // Random new location
         srand(millis()); // Good enough
-        int range =
-            memory_space_last_byte_ - memory_space_first_byte_ - sizeof(data);
-        key_address = rand() % range + memory_space_first_byte_;
+        key_address = rand();
+        // TODO: accept alternate keys to support multiple wear blocks
       }
-      profile.data_size_bytes = sizeof(data);
-      profile.checksum = checkSum_(data);
+
+      // Ensure that the new key falls within feasible write bounds
+      int range = this->length() - required_space;
+      key_address = key_address % range + this->begin();
 
       // Write the new wear profile, and then the data. Old wear key is
       // overwritten with last bytes of data.
+      profile.data_size_bytes = sizeof(data);
+      profile.checksum = checkSum_(data);
       put(key_address, profile);
       put(key_address + sizeof(profile), data);
-      return 1;
+      return key_address;
   }
+
 
 
   // Reads a single bit.
   bool getBit(const int address, const int bit_number);
-
-  // Extensions of EEPROM to handle arrays of data
-  // 'get' and 'put' arrays of objects to and from EEPROM.
-  template <class T> T* get(int idx, T* t, const size_t data_len){
-    for (int element=0; element < data_len; ++element) {
-      get(idx + element, *(t + sizeof(T)*element));
-    }
-    return t;
-  }
-
   // Writes a single bit, returns false only if bit_number is out of range
   bool putBit(const int address, const int bit_number, const bool  value);
   bool updateBit(const int address, const int bit_number, const bool  value);
 
-  template <class T> const T* put(int idx, const T* t, const size_t data_len) {
+
+  // Extensions of EEPROM to handle arrays of data
+  // 'get' and 'put' arrays of objects to and from EEPROM.
+  template <class T> T* get(int idx, T* data_ptr, const size_t data_len){
     for (int element=0; element < data_len; ++element) {
-      put(idx + element, *(t + sizeof(T)*element));
+      get(idx + sizeof(T)*element, *(data_ptr + element));
     }
-    return t;
+    return data_ptr;
+  }
+  
+  void write(int idx, uint8_t val) {
+    update(idx, val);
   }
 
+  template <class T> const T* put(
+      int idx, const T* data_ptr, const size_t data_len) {
+    return update(idx, data_ptr, data_len);
+  }
+ 
+  template <class T> const T& update(int idx, const T& data){ 
+    return put(idx, data);
+  }     
+
+  template <class T> const T* update(
+      int idx, const T* data_ptr, const size_t data_len) {
+    for (int element=0; element < data_len; ++element) {
+      update(idx + sizeof(T)*element, *(data_ptr + element));
+    }
+    return data_ptr;
+  }
 
   // Checks whether EEPROM is ready to be accessed.
   bool isReady();
 
 
-  //Private variables
-  int memory_space_first_byte_;         // First byte of memory space
-  int memory_space_last_byte_;          // Last byte of memory space
-  char* substring(char *haystack, char *needle, size_t length);
+  // "Private" variables
+  EEPtr memory_space_start_;  // First byte of memory space
+  EEPtr memory_space_end_;    // Last byte + 1 of memory space
+  EEPtr prior_key_location_;  // Previously found key location  
+
+  // Finds a substring, ignoring null characters.
+  // Args:
+  //   haystack: pointer to search buffer
+  //   needle: pointer to 8 character key to find
+  //   length: size of haystack buffer
+  // Returns:
+  //   pointer to the found substring or NULL
+  char* substring_(char *haystack, const char *needle, size_t length);
   
 
   // Locates the first valid wear level profile and data block matching the
@@ -152,30 +189,7 @@ public:
   // Returns:
   //   Integer address of the found key, or -1 on failure. The provided
   //   wear_profile will be filled out.
-  int findWearLevelledData_(wear_profile& profile) {
-    int key_address = memory_space_first_byte_;
-
-    // Find a wear key and validate the data
-    while(key_address < memory_space_last_byte_) {
-      key_address = findWearKey_(key_address, profile.key);
-
-      // Read the entire wear profile
-      get(key_address, profile);
-
-      // Read the data
-      uint8_t data[profile.data_size_bytes];
-      get(key_address + sizeof(profile), data, profile.data_size_bytes);
-
-      // If the checksum matches, we've found our data
-      if (profile.checksum == checkSum_(data, profile.data_size_bytes)) {
-        return key_address;
-      }
-
-      ++key_address;
-    }
-    // No dice
-    return -1;
-  }
+  int findWearLevelledData_(wear_profile& profile);
 
 
   // Locates the first instance of the wear key in memory.
@@ -183,8 +197,9 @@ public:
   //   mem_start: starting memory location for search
   //   key: char[] pointer to array containing target key
   // Returns:
-  //  int memory address of start of key, or -1 if not found
-  int findWearKey_(int mem_start, char key[WEAR_KEY_LENGTH]);
+  //  int memory address of start of key, or an out-of-bounds memory location
+  //      if the key was not found.
+  int findWearKey_(int mem_start, const char key[WEAR_KEY_LENGTH]);
 
 
   // Calculates a checksum of a block of data

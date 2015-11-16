@@ -1,8 +1,6 @@
 /*
  * EEPROMwl
- *
- * Tests reading, writing and updating data in the EEPROM
- * to the computer.
+ * Tests for all library funcions.
  */
  
 #include <wlEEPROM.h>
@@ -18,7 +16,7 @@ int getRandomAddress(int size_uint8_ts) {
 
 template <typename T> bool verifyWriteAndRead(const T input) {
   int address = getRandomAddress(sizeof(T));
-  EEPROMwl->write(address, input);
+  EEPROMwl->put(address, input);
   T output;
   EEPROMwl->get(address, output);
 
@@ -70,51 +68,32 @@ template <typename T> int verifyWriteAndReadBlock(const T input[], const int inp
 // Test reading and writing uint8_t to EEPROM
 bool readAndWriteuint8_t() { 
     uint8_t input  = 120;
-    return verifyWriteAndRead<uint8_t>(input);
-}
-
-// Test reading and writing int to EEPROM
-bool readAndWriteInt() {  
-    int input  = 30000;
-    return verifyWriteAndRead<int>(input);
-}
-
-// Test reading and writing long to EEPROM
-bool readAndWriteLong() {    
-    long input  = 200000000;
-    return verifyWriteAndRead<long>(input);
-}
-
-// Test reading and writing float to EEPROM
-bool readAndWriteFloat() { 
-    double input  = 1010102.50;
-    return verifyWriteAndRead<float>(input);
+    return verifyWriteAndRead(input);
 }
 
 // Test reading and updating double to EEPROM
 bool updateAndReadDouble() { 
     double input  = 1000002.50;
-    return verifyWriteAndRead<double>(input);
+    return verifyWriteAndRead(input);
 }
 
 // Test reading and updating a string (char array) to EEPROM
 bool writeAndReadCharArray() {
     char input[] = "Arduino";
-    return (verifyWriteAndReadBlock<char>(input, 7) >= 0);
+    return (verifyWriteAndReadBlock(input, 7) >= 0);
 }
 
-bool writeAndReadByteArray() {
+bool writeAndReadIntArray() {
     int itemsInArray = 7;
-    uint8_t initial[] = {1, 0, 4, 0, 16, 0 , 64 };
+    int32_t initial[] = {1, 0, 4, 0, 16, 0 , 64 };
     int blockAddress = verifyWriteAndReadBlock(initial, itemsInArray);
     if (blockAddress < 0)
       return false;
 
-    uint8_t input[]   = {1, 2, 4, 8, 16, 32, 64 };
-    uint8_t output[sizeof(input)];
-    int expectedWrittenuint8_ts = 3;
-    EEPROMwl->put<uint8_t>(blockAddress, input, itemsInArray);
-    EEPROMwl->get<uint8_t>(blockAddress, output, itemsInArray);
+    int32_t input[]   = {1, 2, 4, 8, 16, 32, 64 };
+    int32_t output[sizeof(input)];
+    EEPROMwl->put(blockAddress, input, itemsInArray);
+    EEPROMwl->get(blockAddress, output, itemsInArray);
 
     for(int element = 0; element < itemsInArray; element++) {
       if (input[element] != output[element]) {
@@ -153,73 +132,61 @@ bool writeAndReadStruct() {
   return true;
 }
 
-// Check if we get errors when writing too much or out of bounds
-void errorChecking() {
-    Serial.println("Expecting Attempt to write outside of EEPROM memory...");
-    if (EEPROMwl->put(E2END + 1, long(1)))
-      Serial.println("ERROR: Write outside E2END should have failed!");    
-}
+
+struct WEARTEST {
+  uint8_t one;
+  uint16_t two;
+  int three;
+};
 
 
-
-bool testFindWearKey() {
-  // Set up a deterministic memory pool
-  delete[] EEPROMwl;
-  EEPROMwl = new wlEEPROM();
-  wear_profile profile = {
-    {'A','B','C','1','2','3','0','0'}
-  };
-  
-
-  const char test_key[] = "ABC12300";
-  // Write the key to a memory address
-  int address = 255;
-  EEPROMwl->put(address, test_key, 8);
-
+int testwlRead(int expected_key_address, wear_profile& profile) {
   // Attempt to find the key within the memory block
-  int key_location = EEPROMwl->findWearLevelledData_(profile);
-  if (key_location != address)
-    return false;
-  Serial.print("OK");
-  return true;
+  int key_location = EEPROMwl->findWearKey_(0, profile.key);
+  if (key_location != expected_key_address)
+    return -1;
+
+  // With checksum validation
+  key_location = EEPROMwl->findWearLevelledData_(profile);
+  if (key_location != expected_key_address)
+    return -2;
+
+  WEARTEST output;
+  int bytes_read = EEPROMwl->wlRead(profile, output);
+  if (bytes_read != sizeof(output))
+    return -3;
+
+  if (output.one != 1 || output.two != 2 || output.three != 3)
+    return -4;
+  
+  Serial.println("OK");
+  return bytes_read;
 }
 
 
-bool testwriteWearLevelling() {
-  struct WEARTEST {
-    uint8_t one;
-    uint16_t two;
-    int three;
-  } test_struct;
+int testwlWrite(wear_profile& profile) {
+  WEARTEST test_struct;
   test_struct.one = 1;
   test_struct.two = 2;
   test_struct.three = 3;
 
-  wear_profile profile = {
-    {'A','B','C','1','2','3','0','0'}
-  };
-  
-  // Set up a deterministic memory pool
-  delete[] EEPROMwl;
-  EEPROMwl = new wlEEPROM();
-
-  const char test_key[] = "wearlevl";
-  // Write the key, checksum, and data to a memory address
-  int address = 255;
-  EEPROMwl->writeWearLevelledData(profile, test_struct);
-  // Verify checksum
+  // Test checkSum method
   if (int(EEPROMwl->checkSum_(test_struct)) != 6) {
     Serial.print("Error: expected checksum == 6, got ");
     Serial.println(int(EEPROMwl->checkSum_(test_struct)));
+    return -1;
   }
+  
+  // Write the key, checksum, and data to memory
+  int key_address1 = EEPROMwl->wlWrite(profile, test_struct);
+  // Write again; validate that the key was written to the correct memory space
+  int key_address2 = EEPROMwl->wlWrite(profile, test_struct);
+  // Data size is 16 bytes, key is 8 bytes
+  if (key_address1 - key_address2 != 8)
+    return -2;
 
-  // Attempt to find the key within the memory block
-  WEARTEST read_data;
-  int data_size = EEPROMwl->readWearLevelledData(profile, read_data);
-  if (data_size != sizeof(read_data))
-    return false;
-  Serial.print("OK");
-  return true;
+  Serial.println("OK");
+  return key_address2;
 }
     
   
@@ -229,38 +196,41 @@ void setup()
   EEPROMwl = new wlEEPROM();
   Serial.begin(9600);
   while (!Serial) {
-    ; // wait for serial port to connect. Needed for Leonardo only
+    ; // wait for serial port to connect. Needed for native USB port only
+  }
+
+  wear_profile profile = {
+    {'w','e','a','r','l','e','v','l'},
+    0x00,
+    0
+  };
+  
+  Serial.print("Testing wlWrite...");
+  int key_address = testwlWrite(profile);
+  if (key_address < 0) {
+    Serial.print("Error in wlWrite: ");
+    Serial.println(key_address);
+  }
+
+  Serial.print("Testing wlRead...");
+  int err_code = testwlRead(key_address, profile);
+  if (err_code < 0) {
+    Serial.print("Error in wlRead: ");
+    Serial.println(err_code);
   }
   
-  // Writes before membase or beyond memBase + memSizeuint8_ts will only give errors when _EEPROMwl_DEBUG is set
   // Create randomized memory pool to avoid excessive writes during testing
-  int memSizeuint8_ts = 80;
-  const int memBase = random(0, E2END - memSizeuint8_ts);
+  int memSizeBytes = 80;
+  const int memBase = random(0, E2END - memSizeBytes);
   Serial.print("Memory pool set to "); Serial.print(memBase); Serial.print(" - ");
-  Serial.println(memBase + memSizeuint8_ts);
-  EEPROMwl->setMemoryPool(memBase, memBase + memSizeuint8_ts);
+  Serial.println(memBase + memSizeBytes);
+  EEPROMwl->setMemoryPool(memBase, memBase + memSizeBytes);
 
-  testwriteWearLevelling();
-  return;
-  
-  Serial.println("");       
 
   // Read and write different data primitives
   Serial.print("Testing readAndWriteuint8_t...");
   if (!readAndWriteuint8_t()) {
     Serial.println("Error in readAndWriteuint8_t");
-  }
-  Serial.print("Testing readAndWriteInt...");
-  if (!readAndWriteInt()) {
-    Serial.println("Error in readAndWriteInt");
-  }
-  Serial.print("Testing readAndWriteLong...");
-  if (!readAndWriteLong()) {
-    Serial.println("Error in readAndWriteLong");
-  }
-  Serial.print("Testing readAndWriteFloat...");
-  if (!readAndWriteFloat()) {    
-    Serial.println("Error in readAndWriteFloat");
   }
   Serial.print("Testing updateAndReadDouble...");
   if (!updateAndReadDouble()) {
@@ -270,22 +240,16 @@ void setup()
   if (!writeAndReadCharArray()) {
     Serial.println("Error in writeAndReadCharArray");  
   }
-  Serial.print("Testing writeAndReaduint8_tArray...");
-  if (!writeAndReadByteArray()) {
-    Serial.println("Error in writeAndReaduint8_tArray");
+  Serial.print("Testing writeAndReadIntArray...");
+  if (!writeAndReadIntArray()) {
+    Serial.println("Error in writeAndReadIntArray");
   }
   Serial.print("Testing writeAndReadStruct...");
   if (!writeAndReadStruct()) {
     Serial.println("Error in writeAndReadStruct");
   }
-  
-  // Test error checking
-  errorChecking();
 
-  Serial.print("Testing findWearKey...");
-  if (!testFindWearKey()) {
-    Serial.println("Error in findWearKey");
-  }
+  delete EEPROMwl;
 }
 
 void loop()

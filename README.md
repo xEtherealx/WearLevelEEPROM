@@ -44,22 +44,6 @@ Its only parameter is an `int` which should be set to the address you wish to re
 
 The function returns an `unsigned char` containing the value read.
 
-#### **`EEPROM.write( address, value )`** [[_example_]](examples/eeprom_write/eeprom_write.ino)
-
-The `write()` method allows you to write a single byte of data to the EEPROM.
-Two parameters are needed. The first is an `int` containing the address that is
-to be written, and the second is a the data to be written (`unsigned char`).
-
-This function does not return any value.
-
-#### **`EEPROM.update( address, value )`** [[_example_]](examples/eeprom_update/eeprom_update.ino)
-
-This function is similar to `EEPROM.write()` however this method will only write
-data if the cell contents pointed to by `address` is different to `value`.
-This method can help prevent unnecessary wear on the EEPROM cells.
-
-This function does not return any value.
-
 #### **`EEPROM.get( address, object )`** [[_example_]](examples/eeprom_get/eeprom_get.ino)
 
 This function will retrieve any object from the EEPROM.
@@ -77,6 +61,15 @@ This function will retrieve an array of size `length` of any type from the EEPRO
 This function returns a pointer to the `object[]` passed in.
 It does not need to be used and is only returned for conveience.
 
+#### **`EEPROM.write( address, value )`** [[_example_]](examples/eeprom_write/eeprom_write.ino)
+
+The `write()` method allows you to write a single byte of data to the EEPROM.
+Two parameters are needed. The first is an `int` containing the address that is
+to be written, and the second is a the data to be written (`unsigned char`).
+This method differs from EEPROM in that write is actually performed as an _update_.
+
+This function does not return any value.
+
 #### **`EEPROM.put( address, object )`** [[_example_]](examples/eeprom_put/eeprom_put.ino)
 
 This function will write any object to the EEPROM.
@@ -84,8 +77,8 @@ Two parameters are needed to call this function. The first is an `int`
 containing the address that is to be written, and the second is the object you
 would like to write.
 
-This function uses the _update_ method to write its data, and therefore only
-rewrites changed cells.
+This function uses the internal _update_ method to write its data, and therefore
+only rewrites changed cells.
 
 This function returns a reference to the `object` passed in. It does not need
 to be used and is only returned for conveience.
@@ -94,11 +87,12 @@ to be used and is only returned for conveience.
 
 This function will write an array of size `length` of any type to the EEPROM.
 
-This function uses the _update_ method to write its data, and therefore only
-rewrites changed cells.
+This function uses the internal _update_ method to write its data, and therefore
+only rewrites changed cells.
 
 This function returns a reference to the `object` passed in. It does not need
 to be used and is only returned for conveience.
+
 
 #### **Subscript operator: `EEPROM[address]`** [[_example_]](examples/eeprom_crc/eeprom_crc.ino)
 
