@@ -1,7 +1,7 @@
 /*
- * EEPROMwl
- * Tests for all library funcions.
- */
+   EEPROMwl
+   Tests for all library funcions.
+*/
 
 #include <wlEEPROM.h>
 
@@ -140,43 +140,43 @@ template <typename T> int verifyWriteAndReadBlock(const T input[], const int inp
 
 // Test reading and writing uint8_t to EEPROM
 bool readAndWriteuint8_t() {
-    uint8_t input  = 120;
-    return verifyWriteAndRead(input);
+  uint8_t input  = 120;
+  return verifyWriteAndRead(input);
 }
 
 // Test reading and updating double to EEPROM
 bool updateAndReadDouble() {
-    double input  = 1000002.50;
-    return verifyWriteAndRead(input);
+  double input  = 1000002.50;
+  return verifyWriteAndRead(input);
 }
 
 // Test reading and updating a string (char array) to EEPROM
 bool writeAndReadCharArray() {
-    char input[] = "Arduino";
-    return (verifyWriteAndReadBlock(input, 7) >= 0);
+  char input[] = "Arduino";
+  return (verifyWriteAndReadBlock(input, 7) >= 0);
 }
 
 bool writeAndReadIntArray() {
-    int itemsInArray = 7;
-    int32_t initial[] = {1, 0, 4, 0, 16, 0 , 64};
-    int blockAddress = verifyWriteAndReadBlock(initial, itemsInArray);
-    if (blockAddress < 0)
+  int itemsInArray = 7;
+  int32_t initial[] = {1, 0, 4, 0, 16, 0 , 64};
+  int blockAddress = verifyWriteAndReadBlock(initial, itemsInArray);
+  if (blockAddress < 0)
+    return false;
+
+  int32_t input[]   = {1, 2, 4, 8, 16, 32, 64};
+  int32_t output[itemsInArray];
+  EEPROMwl->update(blockAddress, input, itemsInArray);
+  EEPROMwl->get(blockAddress, output, itemsInArray);
+
+  // Validate the results
+  for (int element = 0; element < itemsInArray; element++) {
+    if (input[element] != output[element]) {
+      Serial.println("Update failed -- elements do not match.");
       return false;
-
-    int32_t input[]   = {1, 2, 4, 8, 16, 32, 64};
-    int32_t output[itemsInArray];
-    EEPROMwl->update(blockAddress, input, itemsInArray);
-    EEPROMwl->get(blockAddress, output, itemsInArray);
-
-    // Validate the results
-    for(int element = 0; element < itemsInArray; element++) {
-      if (input[element] != output[element]) {
-        Serial.println("Update failed -- elements do not match.");
-        return false;
-      }
     }
+  }
 
-    return true;
+  return true;
 }
 
 
@@ -268,12 +268,13 @@ int testwlRead(int expected_key_address, wear_profile& profile) {
 }
 
 void makeRandomKey(char *s, const int len) {
-    static const char alphanum[] =
-        "0123456789"
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-        "abcdefghijklmnopqrstuvwxyz";
+  static const char alphanum[] =
+    "0123456789"
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    "abcdefghijklmnopqrstuvwxyz";
 
-    for (int i = 0; i < len; ++i) {
-        s[i] = alphanum[rand() % (sizeof(alphanum) - 1)];
-    }
+  for (int i = 0; i < len; ++i) {
+    s[i] = alphanum[rand() % (sizeof(alphanum) - 1)];
+  }
 }
+
