@@ -7,7 +7,7 @@
 #######################################
 
 wlEEPROM	KEYWORD1
-wear_profile KEYWORD1
+wear_profile	KEYWORD1
 EERef	KEYWORD1
 EEPtr	KEYWORD2
 
@@ -15,22 +15,22 @@ EEPtr	KEYWORD2
 # Methods and Functions (KEYWORD2)
 #######################################
 
-isReady KEYWORD2
-setMemoryPool KEYWORD2
-readWearLevelledData KEYWORD2
-writeWearLevelledData KEYWORD2
+isReady	KEYWORD2
+setMemoryPool	KEYWORD2
+readWearLevelledData	KEYWORD2
+writeWearLevelledData	KEYWORD2
 
-get KEYWORD2
-put KEYWORD2
+get	KEYWORD2
+put	KEYWORD2
 update	KEYWORD2
 
-getBit KEYWORD2
-putBit KEYWORD2
-updateBit KEYWORD2
+getBit	KEYWORD2
+putBit	KEYWORD2
+updateBit	KEYWORD2
 
 
 #######################################
 # Constants (LITERAL1)
 #######################################
-WEAR_KEY_SEARCH_SIZE LITERAL1
-WEAR_KEY_LENGTH LITERAL1
+WEAR_KEY_SEARCH_SIZE	LITERAL1
+WEAR_KEY_LENGTH	LITERAL1
